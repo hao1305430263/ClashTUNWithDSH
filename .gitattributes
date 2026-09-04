@@ -1,0 +1,4 @@
+# 行尾规则：install.sh 必须保持 LF（bash 不容忍 CRLF），
+# install.ps1 用 CRLF（Windows PowerShell 传统），其余按 git 默认。
+*.sh text eol=lf
+*.ps1 text eol=crlf
