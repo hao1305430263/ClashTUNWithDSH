@@ -27,19 +27,45 @@ DSH 的网页抓取链路为：`web_fetch` 工具 → `ctx.web`（WebRuntime 服
 
 不修改 DSH 源码、不改部署配置、不注册第二个 provider（因此不影响 provider 选择策略），补丁随插件生命周期生效与撤销。
 
-## 使用方法
+## 一键安装
 
-动态插件仅存在于当前 DSH 进程内，需要在会话中加载一次：
+仓库提供 `install.ps1`（Windows PowerShell）与 `install.sh`（macOS/Linux/Git Bash），一条命令完成安装：
 
-1. 以源码文件 [`clash-tun-web-fetch-unlock.host.js`](./clash-tun-web-fetch-unlock.host.js) 的函数体作为 `cordis_define` 的 `code.host`，定义插件（`idPrefix: "clash"`）。
-2. `cordis_run` 激活对应 Package。
-3. 之后本会话（及子代理）中的所有 `web_fetch` 即不再受非公网 IP 限制；DSH 进程重启后按上述步骤重新加载即可。
+```powershell
+# Windows（PowerShell 5.1+）
+.\install.ps1              # 安装
+.\install.ps1 -Uninstall   # 卸载
+```
+
+```bash
+# macOS / Linux / Git Bash
+./install.sh               # 安装
+./install.sh uninstall     # 卸载
+```
+
+**安装内容**（写入 `$DSH_HOME`，即 `$env:DSH_HOME` 或 `~/.dsh`）：
+
+| 文件 | 说明 |
+| --- | --- |
+| `clash-tun-web-fetch-unlock.cjs` | 宿主平面插件模块（`payload/` 内同一文件的副本） |
+| `cordis.patch.yml` | DSH 官方家目录用户补丁层；脚本以标记块（`# >>> classtunwithdsh`）幂等追加一行 `insert`，把插件挂载进宿主组合 |
+
+**特点**：
+
+- **对所有 profile 的所有会话生效**（宿主平面挂载），无需改动任何预设或 DSH 源码；
+- 若当前 profile 开启了补丁热重载（live），**保存即生效，无需重启 DSH**；否则 DSH 下次启动生效；
+- 幂等：重复运行安全；卸载按标记块精确移除，不触碰文件中的其他内容；
+- 脚本自带卸载入口，随时恢复 DSH 原始行为。
+
+## 使用方法（会话内动态插件，可选）
+
+除一键安装外，也可以在会话内把 [`clash-tun-web-fetch-unlock.host.js`](./clash-tun-web-fetch-unlock.host.js) 的函数体作为 `cordis_define` 的 `code.host` 定义动态插件（`idPrefix: "clash"`），再 `cordis_run` 激活——效果相同，但仅存活于当前 DSH 进程，重启后需重新加载。两种方式择一即可；同时启用时互不冲突（补丁带引用计数与恢复保护）。
 
 ## 验证
 
-激活插件前后各执行一次（DSH Web GUI 默认监听 `127.0.0.1:3080`）：
+安装前后各执行一次（DSH Web GUI 默认监听 `127.0.0.1:3080`）：
 
-| 请求 | 插件激活前 | 插件激活后 |
+| 请求 | 安装前 | 安装后 |
 | --- | --- | --- |
 | `web_fetch http://127.0.0.1:3080/` | `URL hostname "127.0.0.1" resolves to a non-public IP address` | HTTP 401（GUI 认证响应，连接真实发生） |
 | `web_fetch http://localhost:3080/` | 同上被拦 | HTTP 401 |
@@ -49,7 +75,7 @@ DSH 的网页抓取链路为：`web_fetch` 工具 → `ctx.web`（WebRuntime 服
 
 - **这层校验本是 SSRF 防护**。解除后，`web_fetch` 可以访问本机与内网地址。请仅在个人设备、Clash TUN 等可信网络环境下使用，不要让不可信的模型指令引导抓取内网敏感服务。
 - 解除的**只有 IP 解析校验**：URL 协议白名单、凭据拒绝、重定向限制、字节/字符/超时上限、地址钉扎等传输卫生策略全部保留。
-- 插件运行于当前 DSH 进程，进程重启后失效，需重新加载。
+- 一键安装随 DSH 进程常驻（宿主平面），重启后依旧生效；卸载脚本或补丁行后，重启 DSH（或保存触发热重载）即恢复原行为。
 - 日志中每次放行会输出 `[clash-tun-web] allowed non-public destination: <host> -> <ip,...>`，便于观察。
 
 ## 仓库内容
@@ -57,4 +83,6 @@ DSH 的网页抓取链路为：`web_fetch` 工具 → `ctx.web`（WebRuntime 服
 | 文件 | 说明 |
 | --- | --- |
 | `README.md` | 本说明 |
-| `clash-tun-web-fetch-unlock.host.js` | 插件 Host 侧源码（`cordis_define` 的 `code.host` 函数体） |
+| `install.ps1` / `install.sh` | 一键安装 / 卸载（Windows PowerShell / POSIX shell） |
+| `payload/clash-tun-web-fetch-unlock.cjs` | 安装载荷：宿主平面插件模块（CJS，`module.exports = { apply }`） |
+| `clash-tun-web-fetch-unlock.host.js` | 会话内动态插件源码（`cordis_define` 的 `code.host` 函数体，与载荷同一逻辑） |
