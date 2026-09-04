@@ -1,93 +1,96 @@
 # ClashTUNWithDSH
 
-一个 DSH（DeepSeek Harness）插件：**通过解除 `resolves to a non-public IP address` 的限制，使 DSH 可以在 Clash TUN 的情况下工作**。
+English | [中文](README_CN.md)
 
-## 许可证
+A DSH (DeepSeek Harness) plugin that **removes the `resolves to a non-public IP address` restriction so DSH works with Clash TUN**.
 
-本项目以 [GNU AGPL-3.0-or-later](./LICENSE) 发布：你可以自由使用、修改和再分发；再分发（包括作为服务提供）时须以相同许可证开放源码。详见仓库根目录的 `LICENSE` 文件。
+## License
 
-## 这是什么
+This project is released under [GNU AGPL-3.0-or-later](./LICENSE): you are free to use, modify, and redistribute it; any redistribution (including offering it as a network service) must open-source the code under the same license. See the `LICENSE` file at the repository root.
 
-DSH 内置的 `web_fetch` 网页抓取工具带有一层 SSRF 防护：抓取前会把域名解析成 IP，只要解析结果中存在**非公网 IP**（回环、私网、保留网段等），就直接报错拒绝请求：
+## What is this
+
+The built-in `web_fetch` tool in DSH carries an SSRF guard: before fetching, it resolves the hostname to IP addresses, and if any resolved address is a **non-public IP** (loopback, private, reserved ranges, etc.), it rejects the request outright:
 
 ```
 URL hostname "example.com" resolves to a non-public IP address   (WEB_BLOCKED_URL)
 ```
 
-而在 **Clash TUN（fake-ip 模式）** 下，系统 DNS 会被 Clash 接管：任何域名都会解析成 `198.18.0.0/15`（或 `fdfe:dcba:9876::/48`）这类 **fake-ip 保留网段地址**，真实连接由 TUN 虚拟网卡截获后转交给 Clash 按规则代理。这套机制对普通应用完全透明，却恰好命中 DSH 的"非公网 IP"拦截——导致开启 Clash TUN 后 `web_fetch` 几乎所有请求都被拒。
+Under **Clash TUN (fake-ip mode)**, however, system DNS is taken over by Clash: every domain resolves to a **fake-ip reserved-range address** such as `198.18.0.0/15` (or `fdfe:dcba:9876::/48`), and the real connection is intercepted by the TUN virtual adapter and handed to Clash for proxying per its rules. This is completely transparent to ordinary apps, yet it lands exactly on DSH's "non-public IP" tripwire — with Clash TUN enabled, nearly every `web_fetch` request is rejected.
 
-本插件移除这一限制：**解析到什么 IP 都允许访问**，连接仍然直接发起，由 TUN 网卡按原样接管，从而使 DSH 在 Clash TUN 环境下正常工作。
+This plugin removes that restriction: **any resolved IP is allowed**. The connection is still initiated directly and the TUN adapter takes it over unchanged, so DSH works normally under Clash TUN.
 
-## 工作原理
+## How it works
 
-DSH 的网页抓取链路为：`web_fetch` 工具 → `ctx.web`（WebRuntime 服务）→ 本地 HTTP fetch provider（`web-fetch-http`，id 为 `http`）。IP 校验只发生在 provider 实例的 `resolveAddresses` 方法（DNS 解析后逐一检查是否公网 unicast）。
+DSH's fetch pipeline is: the `web_fetch` tool → `ctx.web` (the WebRuntime service) → the local HTTP fetch provider (`web-fetch-http`, id `http`). The IP check only happens inside the provider instance's `resolveAddresses` method (after DNS resolution, it verifies every answer is public unicast).
 
-本插件（Cordis 动态插件，Host 侧）在运行期对该方法做**就地替换**：
+This plugin (a Cordis dynamic plugin, host side) **swaps that method in place** at runtime:
 
-1. **公网目的地零改动**：先照常调用原始解析逻辑，解析结果全为公网 IP 时行为与原版完全一致（含 NAT64 检查、地址钉扎、重定向、大小/超时上限）。
-2. **仅拦截"非公网"这一种情况**：当且仅当原始逻辑抛出 `WEB_BLOCKED_URL` 且消息含 `non-public` 时，通过 DSH 的 `subprocess` 服务拉起一个一次性 Node 子进程，用 `dns.lookup(..., { all: true, order: 'verbatim' })` 走**系统解析器**重新解析（在 Clash TUN 下即得到 fake-ip），**将返回的全部地址放行**，交给原有的地址钉扎传输层直接连接——TUN 按原样截获并交给 Clash 代理。
-3. IP 字面量（如 `127.0.0.1`、`[::1]`）同样放行；解析结果带 60 秒进程内缓存，避免重复拉起子进程。
-4. **停止/更新插件时自动恢复原始方法**，不留任何残留副作用。
+1. **Zero change for public destinations**: the original resolver runs first; when every resolved address is public, behavior is identical to stock (including NAT64 checks, address pinning, redirects, size/timeout caps).
+2. **Only the "non-public" block is lifted**: if and only if the original logic throws `WEB_BLOCKED_URL` with a message containing `non-public`, the plugin spawns a one-shot Node child process through DSH's `subprocess` service and re-resolves via `dns.lookup(..., { all: true, order: 'verbatim' })` through the **system resolver** (which, under Clash TUN, returns the fake-ip), **allows every returned address**, and hands the address set to the stock address-pinned transport — the TUN adapter intercepts the connection and Clash proxies it as usual.
+3. IP literals (e.g. `127.0.0.1`, `[::1]`) are allowed as well; resolved answers are cached for 60 seconds per process to avoid spawning a child process repeatedly.
+4. **The original method is restored when the plugin stops or updates** — no residual side effects.
 
-不修改 DSH 源码、不改部署配置、不注册第二个 provider（因此不影响 provider 选择策略），补丁随插件生命周期生效与撤销。
+No DSH source modification, no deployment config change, no second provider registration (so provider selection is untouched); the patch follows the plugin lifecycle exactly.
 
-## 一键安装
+## One-click install
 
-仓库提供 `install.ps1`（Windows PowerShell）与 `install.sh`（macOS/Linux/Git Bash），一条命令完成安装：
+The repository ships `install.ps1` (Windows PowerShell) and `install.sh` (macOS/Linux/Git Bash). One command installs everything:
 
 ```powershell
-# Windows（PowerShell 5.1+）
-.\install.ps1              # 安装
-.\install.ps1 -Uninstall   # 卸载
+# Windows (PowerShell 5.1+)
+.\install.ps1              # install
+.\install.ps1 -Uninstall   # uninstall
 ```
 
 ```bash
 # macOS / Linux / Git Bash
-./install.sh               # 安装
-./install.sh uninstall     # 卸载
+./install.sh               # install
+./install.sh uninstall     # uninstall
 ```
 
-**安装内容**（写入 `$DSH_HOME`，即 `$env:DSH_HOME` 或 `~/.dsh`）：
+**What gets installed** (into `$DSH_HOME`, i.e. `$env:DSH_HOME` or `~/.dsh`):
 
-| 文件 | 说明 |
+| File | Purpose |
 | --- | --- |
-| `clash-tun-web-fetch-unlock.cjs` | 宿主平面插件模块（`payload/` 内同一文件的副本） |
-| `cordis.patch.yml` | DSH 官方家目录用户补丁层；脚本以标记块（`# >>> classtunwithdsh`）幂等追加一行 `insert`，把插件挂载进宿主组合 |
+| `clash-tun-web-fetch-unlock.cjs` | Host-plane plugin module (a copy of the file in `payload/`) |
+| `cordis.patch.yml` | DSH's official home-directory user patch layer; the script idempotently appends a marked block (`# >>> classtunwithdsh`) with one `insert` row that mounts the plugin into the host composition |
 
-**特点**：
+**Highlights**:
 
-- **对所有 profile 的所有会话生效**（宿主平面挂载），无需改动任何预设或 DSH 源码；
-- 若当前 profile 开启了补丁热重载（live），**保存即生效，无需重启 DSH**；否则 DSH 下次启动生效；
-- 幂等：重复运行安全；卸载按标记块精确移除，不触碰文件中的其他内容；
-- 脚本自带卸载入口，随时恢复 DSH 原始行为。
+- **Applies to every session of every profile** (mounted on the host plane) — no preset or DSH source edits;
+- If the current profile has live patch reloading, it **takes effect immediately on save, no DSH restart needed**; otherwise it applies on the next DSH start;
+- Idempotent: safe to run repeatedly; uninstall removes exactly the marked block and nothing else;
+- The scripts include an uninstall path that restores DSH's original behavior at any time.
 
-## 使用方法（会话内动态插件，可选）
+## Usage (in-session dynamic plugin, optional)
 
-除一键安装外，也可以在会话内把 [`clash-tun-web-fetch-unlock.host.js`](./clash-tun-web-fetch-unlock.host.js) 的函数体作为 `cordis_define` 的 `code.host` 定义动态插件（`idPrefix: "clash"`），再 `cordis_run` 激活——效果相同，但仅存活于当前 DSH 进程，重启后需重新加载。两种方式择一即可；同时启用时互不冲突（补丁带引用计数与恢复保护）。
+Besides the one-click install, you can alternatively define a dynamic plugin in a session: use the function body of [`clash-tun-web-fetch-unlock.host.js`](./clash-tun-web-fetch-unlock.host.js) as `cordis_define`'s `code.host` (`idPrefix: "clash"`), then activate it with `cordis_run` — same effect, but it only lives in the current DSH process and must be re-loaded after a restart. Either way works; enabling both at once is safe (the patch carries ref-counting and restore protection).
 
-## 验证
+## Verification
 
-安装前后各执行一次（DSH Web GUI 默认监听 `127.0.0.1:3080`）：
+Run each request once before and once after installing (the DSH Web GUI listens on `127.0.0.1:3080` by default):
 
-| 请求 | 安装前 | 安装后 |
+| Request | Before | After |
 | --- | --- | --- |
-| `web_fetch http://127.0.0.1:3080/` | `URL hostname "127.0.0.1" resolves to a non-public IP address` | HTTP 401（GUI 认证响应，连接真实发生） |
-| `web_fetch http://localhost:3080/` | 同上被拦 | HTTP 401 |
-| `web_fetch https://example.com/` | HTTP 200 | HTTP 200（公网路径无回归） |
+| `web_fetch http://127.0.0.1:3080/` | `URL hostname "127.0.0.1" resolves to a non-public IP address` | HTTP 401 (the GUI auth response — the connection actually happened) |
+| `web_fetch http://localhost:3080/` | blocked the same way | HTTP 401 |
+| `web_fetch https://example.com/` | HTTP 200 | HTTP 200 (public path, no regression) |
 
-## 注意事项
+## Notes
 
-- **这层校验本是 SSRF 防护**。解除后，`web_fetch` 可以访问本机与内网地址。请仅在个人设备、Clash TUN 等可信网络环境下使用，不要让不可信的模型指令引导抓取内网敏感服务。
-- 解除的**只有 IP 解析校验**：URL 协议白名单、凭据拒绝、重定向限制、字节/字符/超时上限、地址钉扎等传输卫生策略全部保留。
-- 一键安装随 DSH 进程常驻（宿主平面），重启后依旧生效；卸载脚本或补丁行后，重启 DSH（或保存触发热重载）即恢复原行为。
-- 日志中每次放行会输出 `[clash-tun-web] allowed non-public destination: <host> -> <ip,...>`，便于观察。
+- **This check is an SSRF guard.** Once lifted, `web_fetch` can reach local and intranet addresses. Use it only on personal devices and trusted networks such as Clash TUN, and never let untrusted model instructions steer fetches toward sensitive internal services.
+- **Only the IP-resolution check is lifted**: the URL scheme whitelist, credential rejection, redirect limits, byte/char/timeout caps, address pinning, and every other transport-hygiene policy remain in force.
+- The one-click install persists with the DSH process (host plane) and survives restarts; after uninstalling (or removing the patch row), restart DSH (or trigger a live reload) to restore the original behavior.
+- Every allowed non-public destination is logged as `[clash-tun-web] allowed non-public destination: <host> -> <ip,...>` for observability.
 
-## 仓库内容
+## Repository contents
 
-| 文件 | 说明 |
+| File | Purpose |
 | --- | --- |
-| `README.md` | 本说明 |
-| `LICENSE` | GNU AGPL-3.0 许可证全文 |
-| `install.ps1` / `install.sh` | 一键安装 / 卸载（Windows PowerShell / POSIX shell） |
-| `payload/clash-tun-web-fetch-unlock.cjs` | 安装载荷：宿主平面插件模块（CJS，`module.exports = { apply }`） |
-| `clash-tun-web-fetch-unlock.host.js` | 会话内动态插件源码（`cordis_define` 的 `code.host` 函数体，与载荷同一逻辑） |
+| `README.md` | This document (English) |
+| `README_CN.md` | Chinese documentation |
+| `LICENSE` | GNU AGPL-3.0 license text |
+| `install.ps1` / `install.sh` | One-click install / uninstall (Windows PowerShell / POSIX shell) |
+| `payload/clash-tun-web-fetch-unlock.cjs` | Install payload: the host-plane plugin module (CJS, `module.exports = { apply }`) |
+| `clash-tun-web-fetch-unlock.host.js` | In-session dynamic plugin source (`cordis_define`'s `code.host` body; same logic as the payload) |
