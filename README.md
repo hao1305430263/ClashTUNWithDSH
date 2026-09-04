@@ -2,6 +2,10 @@
 
 一个 DSH（DeepSeek Harness）插件：**通过解除 `resolves to a non-public IP address` 的限制，使 DSH 可以在 Clash TUN 的情况下工作**。
 
+## 许可证
+
+本项目以 [GNU AGPL-3.0-or-later](./LICENSE) 发布：你可以自由使用、修改和再分发；再分发（包括作为服务提供）时须以相同许可证开放源码。详见仓库根目录的 `LICENSE` 文件。
+
 ## 这是什么
 
 DSH 内置的 `web_fetch` 网页抓取工具带有一层 SSRF 防护：抓取前会把域名解析成 IP，只要解析结果中存在**非公网 IP**（回环、私网、保留网段等），就直接报错拒绝请求：
@@ -83,6 +87,7 @@ DSH 的网页抓取链路为：`web_fetch` 工具 → `ctx.web`（WebRuntime 服
 | 文件 | 说明 |
 | --- | --- |
 | `README.md` | 本说明 |
+| `LICENSE` | GNU AGPL-3.0 许可证全文 |
 | `install.ps1` / `install.sh` | 一键安装 / 卸载（Windows PowerShell / POSIX shell） |
 | `payload/clash-tun-web-fetch-unlock.cjs` | 安装载荷：宿主平面插件模块（CJS，`module.exports = { apply }`） |
 | `clash-tun-web-fetch-unlock.host.js` | 会话内动态插件源码（`cordis_define` 的 `code.host` 函数体，与载荷同一逻辑） |

@@ -1,4 +1,12 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
 // ClashTUNWithDSH — DSH 插件：解除 web_fetch 的非公网 IP 解析限制
+// Copyright (C) 2025 ClashTUNWithDSH authors
+//
+// 本程序为自由软件：你可以在遵守 GNU Affero 通用公共许可证（自由软件基金会发布的
+// 第 3 版或任意更高版本）的条款下重新分发或修改它。详见 LICENSE 文件或
+// <https://www.gnu.org/licenses/>。本程序不提供任何担保。
+//
 // 用法：将本文件的函数体作为 cordis_define 的 code.host，然后 cordis_run 激活。
 // 原理：就地替换 web-fetch-http provider 实例的 resolveAddresses ——
 //   公网目的地保持原版行为；仅当抛出 WEB_BLOCKED_URL 且含 "non-public" 时，
