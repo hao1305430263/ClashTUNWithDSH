@@ -1,4 +1,5 @@
-# 行尾规则：install.sh 必须保持 LF（bash 不容忍 CRLF），
-# install.ps1 用 CRLF（Windows PowerShell 传统），其余按 git 默认。
-*.sh text eol=lf
-*.ps1 text eol=crlf
+# 行尾规则：补丁层、源码与文档统一 LF，Windows 检出也能被 Node 正确加载。
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary

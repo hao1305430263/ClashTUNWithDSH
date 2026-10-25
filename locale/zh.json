@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Clash TUN 网页抓取解锁",
+    "description": "允许 web_fetch 访问解析到非公网地址的目标，使 Clash TUN（fake-ip）下的网页抓取正常工作。"
+  }
+}

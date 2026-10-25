@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Clash TUN web fetch unlock",
+    "description": "Lets web_fetch reach destinations that resolve to non-public addresses, so fetching works behind Clash TUN fake-ip."
+  }
+}

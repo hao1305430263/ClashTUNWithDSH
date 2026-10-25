@@ -1,0 +1,21 @@
+# ClashTUNWithDSH — DSH bundle patch layer.
+#
+# `dsh.bundle.patch` points here (see package.json), so selecting this package as a
+# profile bundle appends the row below to the composed plugin tree.
+#
+# The row mounts `index.js` as a host plugin. Lists are applied in order, so an
+# `insert` lands at the end of the tree: after `web` and `web-fetch-http` from
+# `@deepseek-ai/dsh-base`. The plugin also catches a provider registered later, so
+# it keeps working when either of those rows is hot-reloaded.
+#
+# Every optional key below is commented out; uncomment to change a default.
+- insert:
+    - id: clash-tun-web-fetch-unlock
+      name: 'clash-tun-with-dsh'
+      # config:
+      #   # Fetch provider id to patch; the local HTTP provider registers as "http".
+      #   providerId: http
+      #   # Lifetime in milliseconds of a lifted answer set (0 disables caching).
+      #   cacheTtlMs: 60000
+      #   # Maximum cached hostnames before the cache is cleared wholesale.
+      #   cacheMaxEntries: 400
