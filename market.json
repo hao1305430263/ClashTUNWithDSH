@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "title": {
+    "en": "ClashTUNWithDSH",
+    "zh": "ClashTUNWithDSH"
+  },
+  "description": {
+    "en": "DSH plugins for running behind Clash TUN (fake-ip).",
+    "zh": "让 DSH 在 Clash TUN（fake-ip）下正常工作的插件。"
+  },
+  "metadata": {
+    "categories": {
+      "network": {
+        "title": {
+          "en": "Network",
+          "zh": "网络"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "clash-tun-with-dsh",
+      "title": {
+        "en": "Clash TUN web fetch unlock",
+        "zh": "Clash TUN 网页抓取解锁"
+      },
+      "description": {
+        "en": "Lets web_fetch reach destinations that resolve to non-public addresses, so fetching works behind Clash TUN fake-ip.",
+        "zh": "允许 web_fetch 访问解析到非公网地址的目标，使 Clash TUN（fake-ip）下的网页抓取正常工作。"
+      },
+      "author": "ClashTUNWithDSH authors",
+      "homepage": "https://github.com/ffdnm/ClashTUNWithDSH",
+      "repository": {
+        "url": "https://github.com/ffdnm/ClashTUNWithDSH"
+      },
+      "metadata": {
+        "category": "network",
+        "keywords": [
+          "dsh",
+          "dsh-plugin",
+          "dsh-bundle",
+          "deepseek-harness",
+          "clash",
+          "clash-verge",
+          "tun",
+          "fake-ip",
+          "web-fetch",
+          "ssrf"
+        ]
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1792928380,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/ffdnm/ClashTUNWithDSH",
+            "commit": "467782f83d56c447b219b0fc027edc40fe4a781a"
+          },
+          "engines": {
+            "dsh": ">=0.2.0 <1.0.0"
+          }
+        }
+      ]
+    }
+  ]
+}
